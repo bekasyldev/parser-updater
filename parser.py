@@ -16,8 +16,8 @@ class MarketplaceParser:
         self.options = webdriver.ChromeOptions()
         
         # Proxy configuration for papaproxy.net
-        PROXY_HOST = "5.35.94.165"  # Your VPS IP
-        PROXY_PORT = "8085"         # For HTTP/HTTPS proxy
+        PROXY_HOST = os.getenv('PROXY_HOST')
+        PROXY_PORT = os.getenv('PROXY_PORT')         # For HTTP/HTTPS proxy
         
         # Configure proxy
         self.options.add_argument(f'--proxy-server=http://{PROXY_HOST}:{PROXY_PORT}')
@@ -420,12 +420,13 @@ class MarketplaceParser:
 
     def get_proxy_list(self):
         """Get proxy list from papaproxy.net"""
+        PROXY_API_KEY = os.getenv('PROXY_API_KEY')
         proxies = []
         try:
             response = requests.get(
                 'http://api.papaproxy.net/api/v1/proxy/list/txt',
                 headers={
-                    'Authorization': 'Bearer PrsRUSGF6FZF1:JhSiykag'
+                    'Authorization': 'Bearer ' + PROXY_API_KEY
                 }
             )
             if response.status_code == 200:
