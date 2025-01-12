@@ -15,12 +15,21 @@ class MarketplaceParser:
     def __init__(self):
         self.options = webdriver.ChromeOptions()
         
+        # Use the first proxy from the list by default
+        proxies = self.get_proxy_list()
+        if proxies:
+            first_proxy = proxies[0]
+            self.options.add_argument(f'--proxy-server=http://{self.PROXY_USER}:{self.PROXY_PASS}@{first_proxy}')
+            logging.info(f"Using initial proxy: {first_proxy}")
+        
         # Proxy configuration for papaproxy.net
         PROXY_HOST = os.getenv('PROXY_HOST')
         PROXY_PORT = os.getenv('PROXY_PORT')         # For HTTP/HTTPS proxy
+        PROXY_USER = os.getenv('PROXY_USER')
+        PROXY_PASSWORD = os.getenv('PROXY_PASSWORD')
         
         # Configure proxy
-        self.options.add_argument(f'--proxy-server=http://{PROXY_HOST}:{PROXY_PORT}')
+        self.options.add_argument(f'--proxy-server=http://{PROXY_USER}:{PROXY_PASSWORD}@{PROXY_HOST}:{PROXY_PORT}')
         
         # Basic settings
         self.options.add_argument('--headless=new')  # Using newer headless mode
@@ -419,28 +428,21 @@ class MarketplaceParser:
             return None
 
     def get_proxy_list(self):
-        """Get proxy list from papaproxy.net"""
-        PROXY_API_KEY = os.getenv('PROXY_API_KEY')
-        proxies = []
-        try:
-            # Получаем список HTTP/HTTPS прокси с привязкой к IP
-            response = requests.get(
-                'http://api.papaproxy.net/api/v1/proxy/list/txt',
-                params={
-                    'type': 'http',
-                    'ip_auth': True
-                },
-                headers={
-                    'Authorization': f'Bearer {PROXY_API_KEY}'
-                }
-            )
-            if response.status_code == 200:
-                proxies = response.text.strip().split('\n')
-                logging.info(f"Successfully got {len(proxies)} proxies")
-            else:
-                logging.error(f"Failed to get proxies: {response.status_code}")
-        except Exception as e:
-            logging.error(f"Failed to get proxy list: {e}")
+        """Get proxy list from provided IPs"""
+        # Static list of proxies
+        proxies = [
+            "85.239.42.103:8085",
+            "85.239.42.203:8085",
+            "85.239.42.72:8085",
+            "85.239.42.57:8085",
+            "85.239.42.148:8085",
+            "85.239.42.227:8085",
+            "85.239.42.160:8085",
+            "85.239.42.80:8085",
+            "85.239.42.222:8085",
+            "85.239.42.249:8085"
+        ]
+        logging.info(f"Loaded {len(proxies)} proxies from static list")
         return proxies
 
     def rotate_proxy(self):
@@ -448,7 +450,7 @@ class MarketplaceParser:
         proxies = self.get_proxy_list()
         if proxies:
             proxy = random.choice(proxies)
-            self.options.add_argument(f'--proxy-server=http://{proxy}')
+            self.options.add_argument(f'--proxy-server=http://{self.PROXY_USER}:{self.PROXY_PASS}@{proxy}')
             self.driver = webdriver.Chrome(options=self.options)
             logging.info(f"Rotated to new proxy: {proxy}")
             return True
