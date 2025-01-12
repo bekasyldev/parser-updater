@@ -8,10 +8,19 @@ import json
 import time
 import logging
 import os
+import requests
+import random
 
 class MarketplaceParser:
     def __init__(self):
         self.options = webdriver.ChromeOptions()
+        
+        # Proxy configuration for papaproxy.net
+        PROXY_HOST = "5.35.94.165"  # Your VPS IP
+        PROXY_PORT = "8085"         # For HTTP/HTTPS proxy
+        
+        # Configure proxy
+        self.options.add_argument(f'--proxy-server=http://{PROXY_HOST}:{PROXY_PORT}')
         
         # Basic settings
         self.options.add_argument('--headless=new')  # Using newer headless mode
@@ -408,6 +417,33 @@ class MarketplaceParser:
         except Exception as e:
             print(f"Error parsing Ozon: {e}")
             return None
+
+    def get_proxy_list(self):
+        """Get proxy list from papaproxy.net"""
+        proxies = []
+        try:
+            response = requests.get(
+                'http://api.papaproxy.net/api/v1/proxy/list/txt',
+                headers={
+                    'Authorization': 'Bearer PrsRUSGF6FZF1:JhSiykag'
+                }
+            )
+            if response.status_code == 200:
+                proxies = response.text.strip().split('\n')
+        except Exception as e:
+            logging.error(f"Failed to get proxy list: {e}")
+        return proxies
+
+    def rotate_proxy(self):
+        """Rotate to a new proxy"""
+        proxies = self.get_proxy_list()
+        if proxies:
+            proxy = random.choice(proxies)
+            self.options.add_argument(f'--proxy-server=http://{proxy}')
+            self.driver = webdriver.Chrome(options=self.options)
+            logging.info(f"Rotated to new proxy: {proxy}")
+            return True
+        return False
 
     def __del__(self):
         if hasattr(self, 'driver'):
