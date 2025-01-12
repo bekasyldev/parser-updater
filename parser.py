@@ -423,14 +423,22 @@ class MarketplaceParser:
         PROXY_API_KEY = os.getenv('PROXY_API_KEY')
         proxies = []
         try:
+            # Получаем список HTTP/HTTPS прокси с привязкой к IP
             response = requests.get(
                 'http://api.papaproxy.net/api/v1/proxy/list/txt',
+                params={
+                    'type': 'http',
+                    'ip_auth': True
+                },
                 headers={
-                    'Authorization': 'Bearer ' + PROXY_API_KEY
+                    'Authorization': f'Bearer {PROXY_API_KEY}'
                 }
             )
             if response.status_code == 200:
                 proxies = response.text.strip().split('\n')
+                logging.info(f"Successfully got {len(proxies)} proxies")
+            else:
+                logging.error(f"Failed to get proxies: {response.status_code}")
         except Exception as e:
             logging.error(f"Failed to get proxy list: {e}")
         return proxies
