@@ -21,25 +21,33 @@ def process_urls(urls, marketplace):
         
         for url in urls:
             try:
+                start_time = time.time()  # Start timing
                 data = None
                 logging.info(f"Starting to parse {marketplace} URL: {url}")
                 
                 if marketplace == 'kaspi':
                     data = parser.parse_kaspi(url)
                     if data:
-                        logging.info(f"Parsed Kaspi data: {data}")
+                        parse_time = time.time() - start_time
+                        logging.info(f"Parsed Kaspi data in {parse_time:.2f}s: {data}")
                         db.update_kaspi_product(data)
                 elif marketplace == 'alibaba':
                     data = parser.parse_alibaba(url)
                     if data:
+                        parse_time = time.time() - start_time
+                        logging.info(f"Parsed Alibaba data in {parse_time:.2f}s: {data}")
                         db.update_alibaba_product(data)
                 elif marketplace == 'wildberries':
                     data = parser.parse_wildberries(url)
                     if data:
+                        parse_time = time.time() - start_time
+                        logging.info(f"Parsed Wildberries data in {parse_time:.2f}s: {data}")
                         db.update_wildberries_product(data)
                 elif marketplace == 'ozon':
                     data = parser.parse_ozon(url)
                     if data:
+                        parse_time = time.time() - start_time
+                        logging.info(f"Parsed Ozon data in {parse_time:.2f}s: {data}")
                         db.update_ozon_product(data)
                 
                 if data:
@@ -48,11 +56,11 @@ def process_urls(urls, marketplace):
                 else:
                     logging.error(f"Failed to parse {marketplace} product: {url}")
                 
-                # Add delay between requests to avoid blocking
                 time.sleep(2)
                 
             except Exception as e:
-                logging.error(f"Error processing {url}: {str(e)}", exc_info=True)
+                parse_time = time.time() - start_time  # Calculate time even for failures
+                logging.error(f"Error processing {url} after {parse_time:.2f}s: {str(e)}", exc_info=True)
                 continue
         
         return results
