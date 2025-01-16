@@ -3,6 +3,12 @@ import logging
 from datetime import datetime
 import json
 from typing import List, Dict, Optional
+from pydantic import BaseModel
+
+class Product(BaseModel):
+    articul: str
+    product_url: str
+
 
 class APIHandler:
     def __init__(self):
@@ -12,29 +18,45 @@ class APIHandler:
             'Content-Type': 'application/json'
         }
 
-    def get_urls(self, marketplace: str) -> List[str]:
+    def get_urls(self, marketplace: str) -> List[tuple[str, str]]:
         """
-        Get product URLs from the API for a specific marketplace
-        Args:
-            marketplace (str): One of 'kaspi', 'ozon', 'wb', 'alibaba'
-        Returns:
-            List[str]: List of product URLs
+        Get product URLs and articuls from the API for a specific marketplace
+        Returns: List of tuples (url, articul)
         """
         try:
+            logging.info(f"Fetching URLs for {marketplace} from {self.base_url}")
+            
             response = requests.get(
                 f"{self.base_url}/api_table/get_data/{marketplace}",
-                headers=self.headers
+                headers=self.headers,
+                timeout=10
             )
-            response.raise_for_status()
-            data = response.json()
             
-            # Extract URLs from response
-            urls = [item.get('product_url') for item in data if item.get('product_url')]
-            logging.info(f"Retrieved {len(urls)} URLs for {marketplace}")
-            return urls
+            if response.status_code == 200:
+                data = response.json()
+                logging.debug(f"Raw response: {data[:2]}")  # Log first 2 items for debugging
+                
+                # Convert raw data to list of (url, articul) tuples
+                products = []
+                for item in data:
+                    # Check both 'url' and 'product_url' fields
+                    url = item.get('url') or item.get('product_url')
+                    articul = item.get('articul')
+                    if url and articul:
+                        products.append((url, articul))
+                    else:
+                        logging.warning(f"Skipping item due to missing data: {item}")
+                
+                logging.info(f"Found {len(products)} products for {marketplace}")
+                if products:
+                    logging.debug(f"Sample product: {products[0]}")
+                return products
+            else:
+                logging.error(f"API returned status code {response.status_code}")
+                return []
             
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error getting URLs for {marketplace}: {str(e)}")
+        except Exception as e:
+            logging.error(f"Error getting URLs for {marketplace}: {str(e)}", exc_info=True)
             return []
 
     def send_kaspi_data(self, data: List[Dict]) -> bool:

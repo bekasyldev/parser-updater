@@ -21,8 +21,8 @@ class DatabaseHandler:
             # Kaspi table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS kaspi_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    articul TEXT NOT NULL UNIQUE,
+                    product_url TEXT,
                     is_available BOOLEAN DEFAULT false,
                     price INTEGER DEFAULT 0,
                     delivery_price TEXT DEFAULT '',
@@ -36,8 +36,8 @@ class DatabaseHandler:
             # Alibaba table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS alibaba_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    articul TEXT NOT NULL UNIQUE,
+                    product_url TEXT,
                     is_available BOOLEAN DEFAULT false,
                     price TEXT DEFAULT '',
                     reviews TEXT DEFAULT '0',
@@ -50,8 +50,8 @@ class DatabaseHandler:
             # Wildberries table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS wildberries_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    articul TEXT NOT NULL UNIQUE,
+                    product_url TEXT,
                     is_available BOOLEAN DEFAULT false,
                     price INTEGER DEFAULT 0,
                     rating TEXT DEFAULT '0',
@@ -63,8 +63,8 @@ class DatabaseHandler:
             # Ozon table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS ozon_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    articul TEXT NOT NULL UNIQUE,
+                    product_url TEXT,
                     is_available BOOLEAN DEFAULT false,
                     price INTEGER DEFAULT 0,
                     rating TEXT DEFAULT '0',
@@ -196,45 +196,45 @@ class DatabaseHandler:
             cur.execute("SELECT product_url FROM ozon_products")
             return [row[0] for row in cur.fetchall()]
 
-    def add_kaspi_url(self, url):
+    def add_kaspi_url(self, articul, url):
         logging.info("Adding kaspi url")
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO kaspi_products (product_url, is_available)
-                VALUES (%s, false)
+                INSERT INTO kaspi_products (articul, product_url, is_available)
+                VALUES (%s, %s, false)
                 ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
+            """, (articul, url))
             self.conn.commit()
 
-    def add_alibaba_url(self, url):
+    def add_alibaba_url(self, articul, url):
         logging.info("Adding alibaba url")
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO alibaba_products (product_url, is_available)
-                VALUES (%s, false)
+                INSERT INTO alibaba_products (articul, product_url, is_available)
+                VALUES (%s, %s, false)
                 ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
+            """, (articul, url))
             self.conn.commit()
 
 
-    def add_wildberries_url(self, url):
+    def add_wildberries_url(self, articul, url):
         logging.info("Adding wildberries url")
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO wildberries_products (product_url, is_available)
-                VALUES (%s, false)
+                INSERT INTO wildberries_products (articul,  product_url, is_available)
+                VALUES (%s, %s, false)
                 ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
+            """, (articul, url))
             self.conn.commit()
 
-    def add_ozon_url(self, url):
+    def add_ozon_url(self, articul, url):
         logging.info("Adding ozon url")
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO ozon_products (product_url, is_available)
-                VALUES (%s, false)
+                INSERT INTO ozon_products (articul,     product_url, is_available)
+                VALUES (%s, %s, false)
                 ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
+            """, (articul, url))
             self.conn.commit()
 
     def __del__(self):
