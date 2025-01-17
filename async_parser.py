@@ -1,14 +1,12 @@
 import asyncio
-import aiohttp
 from typing import List, Dict
 import logging
 from datetime import datetime
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from db_handler import DatabaseHandler
 from parser import MarketplaceParser
 from api_handler import APIHandler
+from concurrent.futures import ThreadPoolExecutor
 
 class AsyncMarketplaceParser:
     def __init__(self, max_concurrent_parsers=3):
@@ -17,7 +15,8 @@ class AsyncMarketplaceParser:
         self.db = DatabaseHandler()
         self.api_handler = APIHandler()
         self.parsers = []
-        self.parser_queue = asyncio.Queue()
+        self.thread_pool = ThreadPoolExecutor(max_workers=max_concurrent_parsers)
+        self.loop = asyncio.get_event_loop()
 
     async def initialize_parser(self):
         """Initialize and return a MarketplaceParser instance"""
@@ -37,22 +36,41 @@ class AsyncMarketplaceParser:
         self.parsers.append(parser)
         self.parser_semaphore.release()
 
+    def _sync_parse(self, parser, url: str, marketplace: str):
+        """Synchronous parsing method to run in thread pool"""
+        try:
+            if marketplace == 'kaspi':
+                return parser.parse_kaspi(url)
+            elif marketplace == 'alibaba':
+                return parser.parse_alibaba(url)
+            elif marketplace == 'wildberries':
+                return parser.parse_wildberries(url)
+            elif marketplace == 'ozon':
+                return parser.parse_ozon(url)
+        except Exception as e:
+            logging.error(f"Error parsing {marketplace} URL {url}: {str(e)}")
+            return None
+
     async def parse_url(self, url: str, marketplace: str):
         """Parse a single URL with automatic parser management"""
         parser = await self.get_parser()
         try:
             start_time = time.time()
-            if marketplace == 'kaspi':
-                result = parser.parse_kaspi(url)
-            elif marketplace == 'alibaba':
-                result = parser.parse_alibaba(url)
-            elif marketplace == 'wildberries':
-                result = parser.parse_wildberries(url)
-            elif marketplace == 'ozon':
-                result = parser.parse_ozon(url)
+            
+            # Run the synchronous parsing in a thread pool
+            result = await self.loop.run_in_executor(
+                self.thread_pool,
+                self._sync_parse,
+                parser,
+                url,
+                marketplace
+            )
             
             parse_time = time.time() - start_time
-            logging.info(f"Parsed {marketplace} URL {url} in {parse_time:.2f}s")
+            if result:
+                logging.info(f"Parsed {marketplace} URL {url} in {parse_time:.2f}s")
+            else:
+                logging.error(f"Failed to parse {marketplace} URL {url} after {parse_time:.2f}s")
             
             return result
         finally:
@@ -135,6 +153,7 @@ class AsyncMarketplaceParser:
 
     def cleanup(self):
         """Cleanup resources"""
+        self.thread_pool.shutdown(wait=True)
         for parser in self.parsers:
             try:
                 parser.driver.quit()
