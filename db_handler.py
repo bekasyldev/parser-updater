@@ -1,242 +1,173 @@
-import psycopg2
-from dotenv import load_dotenv
-import os
+import asyncpg
 import logging
-load_dotenv()
+from typing import List, Dict
+import os
+import dotenv
+
+dotenv.load_dotenv()
 
 class DatabaseHandler:
     def __init__(self):
-        self.conn = psycopg2.connect(
-            dbname=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            host=os.getenv('DB_HOST'),
-            port=os.getenv('DB_PORT')
-        )
-        self.create_tables()
+        self.pool = None
+        self.dsn = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 
-    def create_tables(self):
-        logging.info("Creating tables")
-        with self.conn.cursor() as cur:
-            # Kaspi table
-            cur.execute("""
+    async def get_pool(self):
+        if not self.pool:
+            self.pool = await asyncpg.create_pool(self.dsn)
+            await self.create_tables()
+        return self.pool
+
+    async def create_tables(self):
+        """Create necessary tables if they don't exist"""
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS kaspi_products (
                     id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    product_url TEXT UNIQUE NOT NULL,
+                    articul TEXT NOT NULL,
                     is_available BOOLEAN DEFAULT false,
-                    price INTEGER DEFAULT 0,
-                    delivery_price TEXT DEFAULT '',
-                    delivery_date TEXT DEFAULT '',
-                    total_reviews INTEGER DEFAULT 0,
-                    rating FLOAT DEFAULT 0.0,
+                    price INTEGER,
+                    total_reviews INTEGER,
+                    rating FLOAT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_kaspi_url ON kaspi_products(product_url);
+                CREATE INDEX IF NOT EXISTS idx_kaspi_articul ON kaspi_products(articul);
             """)
-
-            # Alibaba table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS alibaba_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
-                    is_available BOOLEAN DEFAULT false,
-                    price TEXT DEFAULT '',
-                    reviews TEXT DEFAULT '0',
-                    rating TEXT DEFAULT '0',
-                    delivery_speed TEXT DEFAULT '',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Wildberries table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS wildberries_products (
-                    id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
-                    is_available BOOLEAN DEFAULT false,
-                    price INTEGER DEFAULT 0,
-                    rating TEXT DEFAULT '0',
-                    reviews TEXT DEFAULT '0',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Ozon table
-            cur.execute("""
+            await conn.execute("""
                 CREATE TABLE IF NOT EXISTS ozon_products (
                     id SERIAL PRIMARY KEY,
-                    product_url TEXT UNIQUE,
+                    product_url TEXT UNIQUE NOT NULL,
+                    articul TEXT NOT NULL,
                     is_available BOOLEAN DEFAULT false,
-                    price INTEGER DEFAULT 0,
-                    rating TEXT DEFAULT '0',
-                    reviews TEXT DEFAULT '0',
+                    price INTEGER,
+                    total_reviews INTEGER,
+                    rating FLOAT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_ozon_url ON ozon_products(product_url);
+                CREATE INDEX IF NOT EXISTS idx_ozon_articul ON ozon_products(articul);
             """)
+            logging.info("Created tables")
 
-            # Create indexes for better performance
-            indexes = [
-                "CREATE INDEX IF NOT EXISTS idx_kaspi_url ON kaspi_products(product_url)",
-                "CREATE INDEX IF NOT EXISTS idx_alibaba_url ON alibaba_products(product_url)",
-                "CREATE INDEX IF NOT EXISTS idx_wb_url ON wildberries_products(product_url)",
-                "CREATE INDEX IF NOT EXISTS idx_ozon_url ON ozon_products(product_url)"
-            ]
-            
-            for index in indexes:
-                cur.execute(index)
-
-            self.conn.commit()
-
-    def update_kaspi_product(self, data):
-        logging.info("Updating kaspi product")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE kaspi_products SET 
-                    is_available = %s,
-                    price = %s,
-                    delivery_price = %s,
-                    delivery_date = %s,
-                    total_reviews = %s,
-                    rating = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE product_url = %s
-            """, (
-                data.get('is_available', False),
-                data.get('price', 0),
-                data.get('delivery_price', ''),
-                data.get('delivery_date', ''),
-                data.get('total_reviews', 0),
-                data.get('rating', 0.0),
-                data.get('product_url')
-            ))
-            self.conn.commit()
-
-    def update_alibaba_product(self, data):
-        logging.info("Updating alibaba product")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE alibaba_products SET 
-                    is_available = %s,
-                    price = %s,
-                    reviews = %s,
-                    rating = %s,
-                    delivery_speed = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE product_url = %s
-            """, (
-                data.get('is_available', False),
-                data.get('price', ''),
-                data.get('reviews', '0'),
-                data.get('rating', '0'),
-                data.get('delivery_speed', ''),
-                data.get('product_url')
-            ))
-            self.conn.commit()
-
-    def update_wildberries_product(self, data):
-        logging.info("Updating wildberries product")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE wildberries_products SET 
-                    is_available = %s,
-                    price = %s,
-                    rating = %s,
-                    reviews = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE product_url = %s
-            """, (
-                data.get('is_available', False),
-                data.get('price', 0),
-                data.get('rating', '0'),
-                data.get('reviews', '0'),
-                data.get('product_url')
-            ))
-            self.conn.commit()
-
-    def update_ozon_product(self, data):
-        logging.info("Updating ozon product")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                UPDATE ozon_products SET 
-                    is_available = %s,
-                    price = %s,
-                    rating = %s,
-                    reviews = %s,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE product_url = %s
-            """, (
-                data.get('is_available', False),
-                data.get('price', 0),
-                data.get('rating', '0'),
-                data.get('reviews', '0'),
-                data.get('product_url')
-            ))
-            self.conn.commit()
-
-    def get_kaspi_urls(self):
-        logging.info("Getting kaspi urls")
-        with self.conn.cursor() as cur:
-            cur.execute("SELECT product_url FROM kaspi_products")
-            return [row[0] for row in cur.fetchall()]
+    async def get_kaspi_urls(self) -> List[str]:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT product_url FROM kaspi_products")
+            return [row['product_url'] for row in rows]
     
-    def get_alibaba_urls(self):
-        logging.info("Getting alibaba urls")
-        with self.conn.cursor() as cur:
-            cur.execute("SELECT product_url FROM alibaba_products")
-            return [row[0] for row in cur.fetchall()]
+    async def get_alibaba_urls(self) -> List[str]:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT product_url FROM alibaba_products")
+            return [row['product_url'] for row in rows]
     
-    def get_wildberries_urls(self):
-        logging.info("Getting wildberries urls")
-        with self.conn.cursor() as cur:
-            cur.execute("SELECT product_url FROM wildberries_products")
-            return [row[0] for row in cur.fetchall()]
+    async def get_ozon_urls(self) -> List[str]:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT product_url FROM ozon_products")
+            return [row['product_url'] for row in rows]
     
-    def get_ozon_urls(self):
-        logging.info("Getting ozon urls")
-        with self.conn.cursor() as cur:
-            cur.execute("SELECT product_url FROM ozon_products")
-            return [row[0] for row in cur.fetchall()]
+    async def get_wildberries_urls(self) -> List[str]:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT product_url FROM wildberries_products")
+            return [row['product_url'] for row in rows]
 
-    def add_kaspi_url(self, url):
-        logging.info("Adding kaspi url")
-        with self.conn.cursor() as cur:
-            cur.execute("""
+    async def update_kaspi_product(self, data: Dict):
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            try:
+                await conn.execute("""
+                    INSERT INTO kaspi_products (
+                        product_url,
+                        articul,
+                        price,
+                        is_available,
+                        total_reviews,
+                        rating,
+                        updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    ON CONFLICT (product_url) 
+                    DO UPDATE SET 
+                        articul = EXCLUDED.articul,
+                        price = EXCLUDED.price,
+                        is_available = EXCLUDED.is_available,
+                        total_reviews = EXCLUDED.total_reviews,
+                        rating = EXCLUDED.rating,
+                        updated_at = NOW()
+                """, 
+                data['product_url'],
+                data['articul'],
+                data.get('price'),
+                data.get('is_available', False),
+                data.get('total_reviews'),
+                data.get('rating')
+                )
+                logging.info(f"Successfully updated product in database: {data['product_url']}")
+            except Exception as e:
+                logging.error(f"Error updating product in database: {str(e)}")
+
+    async def update_alibaba_product(self, data: Dict):
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("INSERT INTO alibaba_products (product_url, is_available, price, reviews, rating, delivery_speed, updated_at, articul) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", data['product_url'], data['is_available'], data['price'], data['reviews'], data['rating'], data['delivery_speed'], data['updated_at'], data['articul'])
+            logging.info(f"Successfully updated product in database: {data['product_url']}")
+        
+    async def update_ozon_product(self, data: Dict):
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            try:
+                await conn.execute("""
+                    INSERT INTO ozon_products (
+                        product_url,
+                        articul,
+                        price,
+                        is_available,
+                        total_reviews,
+                        rating,
+                        updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    ON CONFLICT (product_url) 
+                    DO UPDATE SET 
+                        articul = EXCLUDED.articul,
+                        price = EXCLUDED.price,
+                        is_available = EXCLUDED.is_available,
+                        total_reviews = EXCLUDED.total_reviews,
+                        rating = EXCLUDED.rating,
+                        updated_at = NOW()
+                """, 
+                data['product_url'],
+                data['articul'],
+                data.get('price'),
+                data.get('is_available', False),
+                data.get('total_reviews'),
+                data.get('rating')
+                )
+                logging.info(f"Successfully updated product in database: {data['product_url']}")
+            except Exception as e:
+                logging.error(f"Error updating product in database: {str(e)}")
+    
+    async def update_wildberries_product(self, data: Dict):
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("INSERT INTO wildberries_products (product_url, is_available, price, total_reviews, rating, updated_at, articul) VALUES ($1, $2, $3, $4, $5, $6, $7)", data['product_url'], data['is_available'], data['price'], data['total_reviews'], data['rating'], data['updated_at'], data['articul'])
+            logging.info(f"Successfully updated product in database: {data['product_url']}")
+
+    async def add_kaspi_url(self, url: str):
+        """Add a new URL to track"""
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
                 INSERT INTO kaspi_products (product_url, is_available)
-                VALUES (%s, false)
+                VALUES ($1, false)
                 ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
-            self.conn.commit()
+            """, url)
+            logging.info(f"Added new URL to track: {url}")
 
-    def add_alibaba_url(self, url):
-        logging.info("Adding alibaba url")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO alibaba_products (product_url, is_available)
-                VALUES (%s, false)
-                ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
-            self.conn.commit()
-
-
-    def add_wildberries_url(self, url):
-        logging.info("Adding wildberries url")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO wildberries_products (product_url, is_available)
-                VALUES (%s, false)
-                ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
-            self.conn.commit()
-
-    def add_ozon_url(self, url):
-        logging.info("Adding ozon url")
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO ozon_products (product_url, is_available)
-                VALUES (%s, false)
-                ON CONFLICT (product_url) DO NOTHING
-            """, (url,))
-            self.conn.commit()
-
-    def __del__(self):
-        if hasattr(self, 'conn'):
-            self.conn.close() 
+    async def close(self):
+        if self.pool:
+            await self.pool.close() 
