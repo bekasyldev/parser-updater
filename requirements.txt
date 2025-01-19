@@ -1,8 +1,25 @@
+# Core dependencies
+playwright==1.41.0
+asyncio==3.4.3
+aiohttp==3.9.1
+python-dotenv==1.0.0
+asyncpg==0.29.0
+
+# Logging and utilities
+python-json-logger==2.0.7
+
+# Optional but recommended
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
+
+# For browser automation
+# After installing requirements, run:
+# playwright install chromium
+
 # Database
 psycopg2-binary==2.9.9
-
-# Environment variables
-python-dotenv==1.0.0
 
 # Web scraping
 selenium==4.16.0
