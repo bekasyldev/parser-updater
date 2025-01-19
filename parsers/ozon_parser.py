@@ -37,7 +37,6 @@ class OzonParser(BaseParser):
 
                 # Try to find JSON-LD data
                 content = await page.content()
-                logging.info(f"Page content: {content}")
                 match = re.search(r'<script[^>]*type="application/ld\+json"[^>]*>(\{[^<]+\})</script>', content)
 
                 if not match:

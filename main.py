@@ -6,6 +6,9 @@ from parsers.parser_factory import ParserFactory
 from services.api_service import APIService
 from db_handler import DatabaseHandler
 
+UPDATE_INTERVAL = 20 * 60  # 20 minutes in seconds
+MARKETPLACE_DELAY = 5  # 5 seconds between marketplaces
+
 async def process_urls(urls, marketplace):
     """Process URLs and send to API"""
     if not urls:
@@ -73,9 +76,12 @@ async def process_marketplace(marketplace):
             urls = await db.get_alibaba_urls()
             
         if urls:
-            logging.info(f"Starting update for {marketplace} with {len(urls)} URLs")
+            start_time = datetime.now()
+            logging.info(f"Starting update for {marketplace} with {len(urls)} URLs at {start_time}")
             await process_urls(urls, marketplace)
-            logging.info(f"Completed update for {marketplace}")
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+            logging.info(f"Completed update for {marketplace}. Duration: {duration:.2f} seconds")
         else:
             logging.warning(f"No URLs found for {marketplace}")
             
@@ -90,8 +96,11 @@ async def main():
         await db.create_tables()
         
         while True:
+            cycle_start = datetime.now()
+            logging.info(f"Starting new update cycle at {cycle_start}")
+            
             # Process each marketplace
-            marketplaces = ['kaspi', 'ozon', 'wb', 'alibaba']
+            marketplaces = ['wb', 'ozon', 'kaspi', 'alibaba']
             
             for marketplace in marketplaces:
                 try:
@@ -101,12 +110,26 @@ async def main():
                     logging.error(f"Error in marketplace {marketplace}: {str(e)}")
                     continue
                 
-                # Wait between marketplaces to avoid overwhelming the system
-                await asyncio.sleep(5)
+                # Wait between marketplaces
+                await asyncio.sleep(MARKETPLACE_DELAY)
             
-            # Wait before next round of updates
-            logging.info("Completed all marketplaces, waiting for next cycle")
-            await asyncio.sleep(300)  # 5 minutes between cycles
+            # Calculate time to wait until next cycle
+            cycle_end = datetime.now()
+            cycle_duration = (cycle_end - cycle_start).total_seconds()
+            wait_time = max(0, UPDATE_INTERVAL - cycle_duration)
+            
+            logging.info(f"""
+=== Cycle Summary ===
+Start time: {cycle_start}
+End time: {cycle_end}
+Duration: {cycle_duration:.2f} seconds
+Waiting {wait_time:.2f} seconds until next cycle
+==================
+""")
+            
+            # Wait until next cycle
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
             
     except Exception as e:
         logging.error(f"Error in main loop: {str(e)}")
