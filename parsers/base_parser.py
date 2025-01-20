@@ -13,17 +13,30 @@ class BaseParser(ABC):
 
     async def create_page(self):
         """Create a new page with proxy configuration"""
-        proxy_config = await self.proxy_service.get_proxy_config()
-        
-        # Create a new context with proxy
-        context = await self.context.browser.new_context(
-            proxy=proxy_config,
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        )
-        
-        # Create and return the page
-        page = await context.new_page()
-        return page
+        try:
+            # Get context options with proxy
+            context_options = await self.proxy_service.get_proxy_context_options()
+            
+            # Create a new context with proxy
+            context = await self.context.browser.new_context(**context_options)
+            
+            # Create and configure the page
+            page = await context.new_page()
+            
+            # Set additional headers
+            await page.set_extra_http_headers({
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            })
+            
+            return page
+        except Exception as e:
+            logging.error(f"Error creating proxy page: {str(e)}")
+            raise
 
     @abstractmethod
     async def parse_product(self, url: str) -> Dict:

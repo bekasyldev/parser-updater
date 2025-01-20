@@ -18,16 +18,21 @@ async def process_urls(urls, marketplace):
         
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch()
+            browser = await p.chromium.launch(
+                proxy={  # Browser-level proxy
+                    'server': 'http://45.130.43.9:8085',
+                    'username': 'PrsRUSGF6FZF1',
+                    'password': 'JhSiykag'
+                }
+            )
             context = await browser.new_context()
             
             # Initialize services
             api_service = APIService()
             proxy_service = ProxyService()
             
-            # Update IP binding if needed
-            current_ip = "2.76.176.224"  # Get your current IP
-            await proxy_service.update_ip_binding(current_ip)
+            # Update IP binding
+            await proxy_service.update_ip_binding()
             
             semaphore = asyncio.Semaphore(10)
             
