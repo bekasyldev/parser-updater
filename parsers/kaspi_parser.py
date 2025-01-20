@@ -56,6 +56,12 @@ class KaspiParser(BaseParser):
                         price = None
                         is_available = False
 
+                        try:
+                            close_modal = await page.query_selector('i.icon.icon_close')
+                            await close_modal.click()
+                        except:
+                            pass
+
                         if isinstance(offers, list):
                             # Find first offer with price
                             for offer in offers:
