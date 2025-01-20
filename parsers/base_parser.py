@@ -3,11 +3,27 @@ import logging
 import time
 import asyncio
 from typing import Dict, Optional, List, Tuple
+from services.proxy_service import ProxyService
 
 class BaseParser(ABC):
     def __init__(self, context, semaphore):
         self.context = context
         self.semaphore = semaphore
+        self.proxy_service = ProxyService()
+
+    async def create_page(self):
+        """Create a new page with proxy configuration"""
+        proxy_config = await self.proxy_service.get_proxy_config()
+        
+        # Create a new context with proxy
+        context = await self.context.browser.new_context(
+            proxy=proxy_config,
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        )
+        
+        # Create and return the page
+        page = await context.new_page()
+        return page
 
     @abstractmethod
     async def parse_product(self, url: str) -> Dict:

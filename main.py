@@ -5,6 +5,7 @@ from playwright.async_api import async_playwright
 from parsers.parser_factory import ParserFactory
 from services.api_service import APIService
 from db_handler import DatabaseHandler
+from services.proxy_service import ProxyService
 
 UPDATE_INTERVAL = 20 * 60  # 20 minutes in seconds
 MARKETPLACE_DELAY = 5  # 5 seconds between marketplaces
@@ -22,6 +23,12 @@ async def process_urls(urls, marketplace):
             
             # Initialize services
             api_service = APIService()
+            proxy_service = ProxyService()
+            
+            # Update IP binding if needed
+            current_ip = "2.76.176.224"  # Get your current IP
+            await proxy_service.update_ip_binding(current_ip)
+            
             semaphore = asyncio.Semaphore(10)
             
             # Get appropriate parser
