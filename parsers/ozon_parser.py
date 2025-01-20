@@ -31,6 +31,8 @@ class OzonParser(BaseParser):
                 await page.goto(url, wait_until='networkidle')
                 await page.wait_for_timeout(2000)  # Wait longer for initial load
 
+                print('content', content)
+
                 # Check for challenge page
                 if await page.query_selector('.container .message'):
                     logging.warning(f"Challenge detected for {url}, attempting to bypass...")

@@ -29,6 +29,8 @@ class KaspiParser(BaseParser):
 
                 # Get JSON-LD data
                 content = await page.content()
+
+                print('content', content)
                 # Find all JSON-LD scripts
                 matches = re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', content, re.DOTALL)
                 print('matches', matches)
