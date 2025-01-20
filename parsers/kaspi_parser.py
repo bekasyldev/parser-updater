@@ -30,7 +30,12 @@ class KaspiParser(BaseParser):
                 # Get JSON-LD data
                 content = await page.content()
 
-                print('content', content)
+                try:
+                    close_modal = await page.query_selector('i.icon.icon_close')
+                    await close_modal.click()
+                except:
+                    pass
+
                 # Find all JSON-LD scripts
                 matches = re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', content, re.DOTALL)
                 print('matches', matches)
@@ -55,12 +60,6 @@ class KaspiParser(BaseParser):
                         offers = product_data.get('offers', [])
                         price = None
                         is_available = False
-
-                        try:
-                            close_modal = await page.query_selector('i.icon.icon_close')
-                            await close_modal.click()
-                        except:
-                            pass
 
                         if isinstance(offers, list):
                             # Find first offer with price
