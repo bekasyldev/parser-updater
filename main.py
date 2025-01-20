@@ -5,35 +5,22 @@ from playwright.async_api import async_playwright
 from parsers.parser_factory import ParserFactory
 from services.api_service import APIService
 from db_handler import DatabaseHandler
-from services.proxy_service import ProxyService
 
 UPDATE_INTERVAL = 20 * 60  # 20 minutes in seconds
 MARKETPLACE_DELAY = 5  # 5 seconds between marketplaces
 
 async def process_urls(urls, marketplace):
     """Process URLs and send to API"""
-    if not urls:
-        logging.warning(f"No URLs to process for {marketplace}")
-        return
-        
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                proxy={  # Browser-level proxy
-                    'server': 'http://45.130.43.9:8085',
-                    'username': 'PrsRUSGF6FZF1',
-                    'password': 'JhSiykag'
-                }
+            browser = await p.chromium.launch()
+            context = await browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             )
-            context = await browser.new_context()
             
             # Initialize services
             api_service = APIService()
-            proxy_service = ProxyService()
-            
-            # Update IP binding
-            await proxy_service.update_ip_binding()
-            
             semaphore = asyncio.Semaphore(10)
             
             # Get appropriate parser

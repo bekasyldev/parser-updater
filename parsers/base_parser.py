@@ -3,27 +3,19 @@ import logging
 import time
 import asyncio
 from typing import Dict, Optional, List, Tuple
-from services.proxy_service import ProxyService
 
 class BaseParser(ABC):
     def __init__(self, context, semaphore):
         self.context = context
         self.semaphore = semaphore
-        self.proxy_service = ProxyService()
 
     async def create_page(self):
-        """Create a new page with proxy configuration"""
+        """Create a new page"""
         try:
-            # Get context options with proxy
-            context_options = await self.proxy_service.get_proxy_context_options()
-            
-            # Create a new context with proxy
-            context = await self.context.browser.new_context(**context_options)
-            
             # Create and configure the page
-            page = await context.new_page()
+            page = await self.context.new_page()
             
-            # Set additional headers
+            # Set headers
             await page.set_extra_http_headers({
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -35,7 +27,7 @@ class BaseParser(ABC):
             
             return page
         except Exception as e:
-            logging.error(f"Error creating proxy page: {str(e)}")
+            logging.error(f"Error creating page: {str(e)}")
             raise
 
     @abstractmethod
@@ -47,7 +39,6 @@ class BaseParser(ABC):
         tasks = [self.parse_product(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Filter out errors and format results
         valid_results = []
         for result in results:
             if isinstance(result, tuple) and not isinstance(result, Exception):
