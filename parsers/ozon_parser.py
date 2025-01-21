@@ -54,7 +54,11 @@ class OzonParser(BaseParser):
                             return parseInt(priceElem.textContent.replace(/[^\d]/g, ''));
                         }
                         return null;
-                    }''')
+                    } catch (e) {
+                        console.error('Error getting price:', e);
+                        return null;
+                    }
+                }''')
 
                     reviews_data = await page.evaluate('''() => {
                         const reviewsElem = document.querySelector('[data-widget="webReviewProductScore"]');

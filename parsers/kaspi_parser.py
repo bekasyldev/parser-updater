@@ -31,15 +31,18 @@ class KaspiParser(BaseParser):
                 content = await page.content()
 
                 try:
-                    close_modal = await page.query_selector('i.icon.icon_close')
-                    await close_modal.click()
+                    # Wait for element to be visible
+                    close_button = await page.wait_for_selector('.modal-close', timeout=5000)
+                    if close_button:
+                        await close_button.click()
+                        await page.wait_for_timeout(1000)  # 
                 except:
                     pass
 
                 # Find all JSON-LD scripts
                 matches = re.finditer(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', content, re.DOTALL)
-                print('matches', matches)
-                
+
+
                 product_data = None
                 for match in matches:
                     try:
@@ -60,6 +63,12 @@ class KaspiParser(BaseParser):
                         offers = product_data.get('offers', [])
                         price = None
                         is_available = False
+
+                        try:
+                            close_modal = await page.query_selector('i.icon.icon_close')
+                            await close_modal.click()
+                        except:
+                            pass
 
                         if isinstance(offers, list):
                             # Find first offer with price

@@ -31,7 +31,7 @@ class AlibabaParser(BaseParser):
                     "Sec-Fetch-User": "?1"
                 })
                 await page.goto(url, wait_until='networkidle')
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(1000)
 
                 # Get JSON-LD data
                 content = await page.content()
@@ -42,23 +42,26 @@ class AlibabaParser(BaseParser):
                         json_data = json.loads(match.group(1))
                         # Handle both single object and array cases
                         if isinstance(json_data, list):
-                            json_data = json_data[0]
+                            # Find the Product object in the array
+                            for item in json_data:
+                                if item.get('@type') == 'Product':
+                                    json_data = item
+                                    break
                         
                         # Extract data from JSON-LD
                         price = float(json_data.get('offers', {}).get('price', 0))
                         is_available = 'InStock' in json_data.get('offers', {}).get('availability', '')
                         articul = json_data.get('sku') or json_data.get('mpn')
                         
-                        # Get rating from reviews
+                        # Get rating from review array
                         reviews = json_data.get('review', [])
+                        rating = 0
                         if reviews:
                             if isinstance(reviews, list):
                                 review = reviews[0]
                             else:
                                 review = reviews
                             rating = float(review.get('reviewRating', {}).get('ratingValue', 0))
-                        else:
-                            rating = 0
 
                         result = {
                             'product_url': url,
@@ -88,21 +91,43 @@ class AlibabaParser(BaseParser):
                         return 0;
                     }
                 }''')
-
+                
                 reviews_data = await page.evaluate('''() => {
                     try {
                         const reviewsElem = document.querySelector('div.verified-reviews');
                         const ratingElem = document.querySelector('div.score');
                         
+                        let total = 0;
+                        let rating = 0;
+                        
+                        if (reviewsElem) {
+                            // Extract number from text like "Based on 190 reviews"
+                            const reviewText = reviewsElem.textContent;
+                            const match = reviewText.match(/Based on\s+(\d+)\s+reviews/);
+                            if (match) {
+                                total = parseInt(match[1]);
+                            }
+                        }
+                        
+                        if (ratingElem) {
+                            // Get rating value directly
+                            rating = parseFloat(ratingElem.textContent.trim());
+                        }
+                        
                         return {
-                            total: reviewsElem ? parseInt(reviewsElem.textContent.replace(/[^\d]/g, '')) : 0,
-                            rating: ratingElem ? parseFloat(ratingElem.textContent) : 0
+                            total: total,
+                            rating: rating
                         };
                     } catch (e) {
                         console.error('Error getting reviews:', e);
-                        return null;
+                        return {
+                            total: 0,
+                            rating: 0
+                        };
                     }
                 }''')
+
+                print('reviews_data', reviews_data)
 
                 # Get SKU from URL
                 articul = url.split('_')[-1].split('.')[0]
@@ -112,8 +137,8 @@ class AlibabaParser(BaseParser):
                     'articul': articul,
                     'is_available': True,
                     'price': price,
-                    'total_reviews': reviews_data['total'] if reviews_data else 0,
-                    'rating': reviews_data['rating'] if reviews_data else 0
+                    'total_reviews': reviews_data['total'],
+                    'rating': reviews_data['rating']
                 }
 
                 parse_time = time.time() - start_time

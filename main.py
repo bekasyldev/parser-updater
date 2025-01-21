@@ -13,11 +13,12 @@ async def process_urls(urls, marketplace):
     """Process URLs and send to API"""
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            context = await browser.new_context(
-                viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            browser = await p.chromium.launch(
+                args=['--no-sandbox']  # Required for some proxy configurations
             )
+            
+            # Basic context without proxy (will be overridden per page)
+            context = await browser.new_context()
             
             # Initialize services
             api_service = APIService()
@@ -99,7 +100,7 @@ async def main():
             logging.info(f"Starting new update cycle at {cycle_start}")
             
             # Process each marketplace
-            marketplaces = ['kaspi', 'ozon', 'wb', 'alibaba']
+            marketplaces = ['alibaba', 'ozon', 'kaspi', 'wb']
             
             for marketplace in marketplaces:
                 try:
@@ -118,13 +119,13 @@ async def main():
             wait_time = max(0, UPDATE_INTERVAL - cycle_duration)
             
             logging.info(f"""
-=== Cycle Summary ===
-Start time: {cycle_start}
-End time: {cycle_end}
-Duration: {cycle_duration:.2f} seconds
-Waiting {wait_time:.2f} seconds until next cycle
-==================
-""")
+                === Cycle Summary ===
+                Start time: {cycle_start}
+                End time: {cycle_end}
+                Duration: {cycle_duration:.2f} seconds
+                Waiting {wait_time:.2f} seconds until next cycle
+                ==================
+            """)
             
             # Wait until next cycle
             if wait_time > 0:
