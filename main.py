@@ -100,7 +100,7 @@ async def main():
             logging.info(f"Starting new update cycle at {cycle_start}")
             
             # Process each marketplace
-            marketplaces = ['alibaba', 'ozon', 'kaspi', 'wb']
+            marketplaces = ['ozon', 'kaspi', 'wb', 'alibaba']
             
             for marketplace in marketplaces:
                 try:

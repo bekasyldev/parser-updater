@@ -17,6 +17,8 @@ class AlibabaParser(BaseParser):
             start_time = time.time()
             try:
                 page = await self.context.new_page()
+                
+                # Set headers
                 await page.set_extra_http_headers({
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:134.0) Gecko/20100101 Firefox/134.0",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -24,122 +26,112 @@ class AlibabaParser(BaseParser):
                     "Accept-Encoding": "gzip, deflate, br",
                     "DNT": "1",
                     "Connection": "keep-alive",
-                    "Upgrade-Insecure-Requests": "1",
-                    "Sec-Fetch-Dest": "document",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-Site": "none",
-                    "Sec-Fetch-User": "?1"
+                    "Upgrade-Insecure-Requests": "1"
                 })
+
                 await page.goto(url, wait_until='networkidle')
-                await page.wait_for_timeout(1000)
+                await page.wait_for_timeout(3000)
 
-                # Get JSON-LD data
-                content = await page.content()
-                match = re.search(r'<script[^>]*type="application/ld\+json"[^>]*>(\[?\{[^<]+\}?\]?)</script>', content)
-                
-                if match:
-                    try:
-                        json_data = json.loads(match.group(1))
-                        # Handle both single object and array cases
-                        if isinstance(json_data, list):
-                            # Find the Product object in the array
-                            for item in json_data:
-                                if item.get('@type') == 'Product':
-                                    json_data = item
-                                    break
-                        
-                        # Extract data from JSON-LD
-                        price = float(json_data.get('offers', {}).get('price', 0))
-                        is_available = 'InStock' in json_data.get('offers', {}).get('availability', '')
-                        articul = json_data.get('sku') or json_data.get('mpn')
-                        
-                        # Get rating from review array
-                        reviews = json_data.get('review', [])
-                        rating = 0
-                        if reviews:
-                            if isinstance(reviews, list):
-                                review = reviews[0]
-                            else:
-                                review = reviews
-                            rating = float(review.get('reviewRating', {}).get('ratingValue', 0))
-
-                        result = {
+                # Check if product is unavailable
+                try:
+                    unavailable = await page.query_selector('.product-unsafe')
+                    if unavailable and await unavailable.is_visible():
+                        return {
                             'product_url': url,
-                            'articul': articul,
-                            'is_available': is_available,
-                            'price': price,
-                            'total_reviews': len(reviews) if isinstance(reviews, list) else 1 if reviews else 0,
-                            'rating': rating
+                            'articul': url.split('_')[-1].split('.')[0],
+                            'is_available': False,
+                            'price': 0,
+                            'reviews': 0,
+                            'rating': 0
+                        }, time.time() - start_time
+                except Exception as e:
+                    logging.debug(f"Error checking availability: {str(e)}")
+
+                # Extract data using JavaScript
+                data = await page.evaluate('''() => {
+                    try {
+                        // Get price - handle multiple price formats
+                        let price = 0;
+                        
+                        // Try promotion price first
+                        const promotionPrice = document.querySelector('.promotion-price strong.normal');
+                        if (promotionPrice) {
+                            const priceText = promotionPrice.textContent.trim();
+                            price = parseFloat(priceText.replace(/[^0-9.]/g, ''));
                         }
-
-                        parse_time = time.time() - start_time
-                        logging.info(f"Successfully parsed data in {parse_time:.2f}s: {result}")
-                        await page.close()
-                        return result, parse_time
-
-                    except json.JSONDecodeError as e:
-                        logging.error(f"Error parsing JSON-LD data for {url}: {str(e)}")
-                        return {'product_url': url, 'error': f'JSON parse error: {str(e)}'}, time.time() - start_time
-
-                # Fallback to DOM parsing if no JSON-LD found
-                price = await page.evaluate('''() => {
-                    try {
-                        const priceElem = document.querySelector('div.price-list .price');
-                        return priceElem ? parseFloat(priceElem.textContent.replace(/[^\d.]/g, '')) : 0;
-                    } catch (e) {
-                        console.error('Error getting price:', e);
-                        return 0;
-                    }
-                }''')
-                
-                reviews_data = await page.evaluate('''() => {
-                    try {
-                        const reviewsElem = document.querySelector('div.verified-reviews');
-                        const ratingElem = document.querySelector('div.score');
                         
-                        let total = 0;
-                        let rating = 0;
-                        
-                        if (reviewsElem) {
-                            // Extract number from text like "Based on 190 reviews"
-                            const reviewText = reviewsElem.textContent;
-                            const match = reviewText.match(/Based on\s+(\d+)\s+reviews/);
-                            if (match) {
-                                total = parseInt(match[1]);
+                        // If no promotion price, try price list
+                        if (!price) {
+                            const priceList = document.querySelector('.price-list');
+                            if (priceList) {
+                                const firstPrice = priceList.querySelector('.price span');
+                                if (firstPrice) {
+                                    const priceText = firstPrice.textContent.trim();
+                                    price = parseFloat(priceText.replace(/[^0-9.]/g, ''));
+                                }
                             }
                         }
+
+                        // Get reviews and rating
+                        let rating = 0;
+                        let reviews = 0;
+                        let hasReviews = false;
                         
-                        if (ratingElem) {
-                            // Get rating value directly
-                            rating = parseFloat(ratingElem.textContent.trim());
+                        // Check for "No reviews yet" text
+                        const noReviewsText = document.querySelector('.detail-review-item.detail-separator');
+                        if (noReviewsText && noReviewsText.textContent.includes('No reviews yet')) {
+                            hasReviews = false;
+                        } else {
+                            // Try to get star rating
+                            const starElement = document.querySelector('.detail-star');
+                            if (starElement) {
+                                const ratingText = starElement.textContent.trim();
+                                rating = parseFloat(ratingText);
+                                hasReviews = true;
+                            }
+
+                            // Try to get review count
+                            const reviewElement = document.querySelector('.detail-review');
+                            if (reviewElement) {
+                                const reviewText = reviewElement.textContent.trim();
+                                const match = reviewText.match(/\\((\\d+)\\s+review/);
+                                if (match) {
+                                    reviews = parseInt(match[1]);
+                                    hasReviews = true;
+                                }
+                            }
                         }
-                        
+
                         return {
-                            total: total,
-                            rating: rating
+                            price: price || 0,
+                            rating: hasReviews ? rating : 0,
+                            reviews: hasReviews ? reviews : 0,
+                            is_available: price > 0
                         };
                     } catch (e) {
-                        console.error('Error getting reviews:', e);
-                        return {
-                            total: 0,
-                            rating: 0
-                        };
+                        console.error('Error extracting data:', e);
+                        return null;
                     }
                 }''')
 
-                print('reviews_data', reviews_data)
-
-                # Get SKU from URL
-                articul = url.split('_')[-1].split('.')[0]
-
-                result = {
-                    'product_url': url,
-                    'articul': articul,
-                    'is_available': True,
-                    'price': price,
-                    'total_reviews': reviews_data['total'],
-                    'rating': reviews_data['rating']
-                }
+                if not data:
+                    result = {
+                        'product_url': url,
+                        'articul': url.split('_')[-1].split('.')[0],
+                        'is_available': False,
+                        'price': 0,
+                        'reviews': 0,
+                        'rating': 0
+                    }
+                else:
+                    result = {
+                        'product_url': url,
+                        'articul': url.split('_')[-1].split('.')[0],
+                        'is_available': data['is_available'],
+                        'price': data['price'],
+                        'reviews': data['reviews'],
+                        'rating': data['rating']
+                    }
 
                 parse_time = time.time() - start_time
                 logging.info(f"Successfully parsed data in {parse_time:.2f}s: {result}")
